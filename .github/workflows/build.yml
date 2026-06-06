@@ -1,0 +1,308 @@
+name: Build PearDesk
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# ── Secrets needed for code signing ──────────────────────────────────────────
+#
+#  macOS (all four required together):
+#    MACOS_CERTIFICATE      Base64-encoded Developer ID Application .p12
+#    MACOS_CERTIFICATE_PWD  Password for the .p12
+#    MACOS_KEYCHAIN_PWD     Any random string (temp keychain password)
+#    APPLE_ID               Your Apple ID e-mail
+#    APPLE_APP_PASSWORD     App-specific password (appleid.apple.com)
+#    APPLE_TEAM_ID          10-char Team ID from developer.apple.com
+#
+#  Windows:
+#    WINDOWS_CERTIFICATE    Base64-encoded Authenticode .pfx
+#    WINDOWS_CERTIFICATE_PWD Password for the .pfx
+#
+# If none of these secrets are set the workflow still builds unsigned binaries.
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────────
+  #  Linux → AppImage (unsigned — AppImages are conventionally not signed)
+  # ──────────────────────────────────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxinerama-dev libgl1-mesa-dev libgles2-mesa-dev \
+            libfontconfig1-dev libfreetype6-dev libxtst-dev \
+            pkg-config gcc wget
+
+      - name: Build binary
+        run: |
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o PearDesk ./cmd/peardesk
+
+      - name: Package AppImage
+        run: |
+          wget -q \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
+            -O /tmp/appimagetool
+          chmod +x /tmp/appimagetool
+
+          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/256x256/apps
+          cp PearDesk AppDir/usr/bin/peardesk
+          cp assets/icon.png AppDir/peardesk.png
+          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/peardesk.png
+
+          cat > AppDir/peardesk.desktop << 'EOF'
+          [Desktop Entry]
+          Name=PearDesk
+          Exec=peardesk
+          Icon=peardesk
+          Type=Application
+          Categories=Network;RemoteAccess;
+          EOF
+
+          cat > AppDir/AppRun << 'EOF'
+          #!/bin/sh
+          exec "${APPDIR}/usr/bin/peardesk" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 \
+            /tmp/appimagetool AppDir PearDesk-linux-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peardesk-linux
+          path: PearDesk-linux-x86_64.AppImage
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  #  Windows → .exe (cross-compiled + optional Authenticode signing)
+  # ──────────────────────────────────────────────────────────────────────────────
+  build-windows:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Install mingw-w64 and osslsigncode
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            gcc-mingw-w64-x86-64 pkg-config osslsigncode
+
+      - name: Build Windows EXE
+        env:
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: "1"
+          CC: x86_64-w64-mingw32-gcc
+        run: |
+          go build \
+            -ldflags="-s -w -H=windowsgui" \
+            -o PearDesk.exe ./cmd/peardesk
+
+      # Sign only when the certificate secret is present
+      - name: Sign EXE (Authenticode)
+        if: ${{ secrets.WINDOWS_CERTIFICATE != '' }}
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+        run: |
+          echo "$WINDOWS_CERTIFICATE" | base64 -d > /tmp/cert.pfx
+          osslsigncode sign \
+            -pkcs12 /tmp/cert.pfx \
+            -pass "$WINDOWS_CERTIFICATE_PWD" \
+            -n "PearDesk" \
+            -i "https://github.com/${{ github.repository }}" \
+            -t "http://timestamp.digicert.com" \
+            -in PearDesk.exe \
+            -out PearDesk-signed.exe
+          mv PearDesk-signed.exe PearDesk.exe
+          rm -f /tmp/cert.pfx
+          echo "EXE signed with Authenticode"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peardesk-windows
+          path: PearDesk.exe
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  #  macOS → .dmg (signed + notarized when secrets are present)
+  # ──────────────────────────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+
+      - name: Build macOS binary
+        run: |
+          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+            go build -ldflags="-s -w" -o PearDesk ./cmd/peardesk
+
+      - name: Convert icon to .icns
+        run: |
+          mkdir -p icon.iconset
+          for size in 16 32 64 128 256 512; do
+            sips -z $size $size assets/icon.png \
+              --out icon.iconset/icon_${size}x${size}.png
+          done
+          sips -z 32   32   assets/icon.png --out icon.iconset/icon_16x16@2x.png
+          sips -z 64   64   assets/icon.png --out icon.iconset/icon_32x32@2x.png
+          sips -z 256  256  assets/icon.png --out icon.iconset/icon_128x128@2x.png
+          sips -z 512  512  assets/icon.png --out icon.iconset/icon_256x256@2x.png
+          sips -z 1024 1024 assets/icon.png --out icon.iconset/icon_512x512@2x.png
+          iconutil -c icns icon.iconset -o AppIcon.icns
+
+      - name: Bundle .app
+        run: |
+          mkdir -p PearDesk.app/Contents/MacOS
+          mkdir -p PearDesk.app/Contents/Resources
+          cp PearDesk PearDesk.app/Contents/MacOS/PearDesk
+          cp AppIcon.icns PearDesk.app/Contents/Resources/AppIcon.icns
+
+          cat > PearDesk.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>              <string>PearDesk</string>
+            <key>CFBundleDisplayName</key>       <string>PearDesk</string>
+            <key>CFBundleExecutable</key>        <string>PearDesk</string>
+            <key>CFBundleIdentifier</key>        <string>com.peardesk.app</string>
+            <key>CFBundleVersion</key>           <string>1.0.0</string>
+            <key>CFBundleShortVersionString</key><string>1.0.0</string>
+            <key>CFBundleIconFile</key>          <string>AppIcon</string>
+            <key>NSHighResolutionCapable</key>   <true/>
+            <key>LSMinimumSystemVersion</key>    <string>11.0</string>
+            <key>NSHumanReadableCopyright</key>  <string>Copyright 2024 PearDesk</string>
+          </dict>
+          </plist>
+          EOF
+
+          # Entitlements required by robotgo (screen recording) and Fyne (OpenGL)
+          cat > entitlements.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+            "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.security.cs.allow-jit</key>              <true/>
+            <key>com.apple.security.cs.allow-unsigned-executable-memory</key> <true/>
+            <key>com.apple.security.cs.disable-library-validation</key> <true/>
+          </dict>
+          </plist>
+          EOF
+
+      # Sign with Developer ID when certificate is present
+      - name: Import certificate into keychain
+        if: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          MACOS_KEYCHAIN_PWD: ${{ secrets.MACOS_KEYCHAIN_PWD }}
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 -d > /tmp/cert.p12
+          security create-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$MACOS_KEYCHAIN_PWD" build.keychain
+          security import /tmp/cert.p12 \
+            -k build.keychain \
+            -P "$MACOS_CERTIFICATE_PWD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$MACOS_KEYCHAIN_PWD" build.keychain
+          rm -f /tmp/cert.p12
+
+      - name: Sign .app
+        if: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain \
+            | grep "Developer ID Application" | head -1 | awk '{print $3}')
+          codesign --deep --force --options runtime \
+            --entitlements entitlements.plist \
+            --sign "$IDENTITY" \
+            --timestamp \
+            PearDesk.app
+          echo "Signed with: $IDENTITY"
+
+      - name: Create DMG
+        run: |
+          mkdir dmg-staging
+          cp -r PearDesk.app dmg-staging/
+          ln -s /Applications dmg-staging/Applications
+          hdiutil create \
+            -volname "PearDesk 1.0.0" \
+            -srcfolder dmg-staging \
+            -ov -format UDZO \
+            PearDesk-1.0.0.dmg
+
+      - name: Sign DMG
+        if: ${{ secrets.MACOS_CERTIFICATE != '' }}
+        run: |
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain \
+            | grep "Developer ID Application" | head -1 | awk '{print $3}')
+          codesign --sign "$IDENTITY" --timestamp PearDesk-1.0.0.dmg
+          echo "DMG signed"
+
+      # Notarize + staple (requires Apple ID credentials)
+      - name: Notarize DMG
+        if: ${{ secrets.APPLE_ID != '' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit PearDesk-1.0.0.dmg \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple PearDesk-1.0.0.dmg
+          echo "DMG notarized and stapled"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peardesk-macos
+          path: PearDesk-1.0.0.dmg
+
+  # ──────────────────────────────────────────────────────────────────────────────
+  #  GitHub Release (only on tag pushes)
+  # ──────────────────────────────────────────────────────────────────────────────
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/PearDesk-linux-x86_64.AppImage
+            artifacts/PearDesk.exe
+            artifacts/PearDesk-1.0.0.dmg

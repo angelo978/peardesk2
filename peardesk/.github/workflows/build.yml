@@ -1,0 +1,128 @@
+name: Build PearDesk
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Install deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
+            libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev libfreetype6-dev \
+            libxtst-dev pkg-config gcc
+      - name: Build Linux
+        run: |
+          mkdir -p dist/linux
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
+            go build -ldflags="-s -w" -o dist/linux/peardesk ./cmd/peardesk
+          cp assets/icon.png dist/linux/
+      - name: Install appimagetool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O /usr/local/bin/appimagetool
+          chmod +x /usr/local/bin/appimagetool
+      - name: Build AppImage
+        run: |
+          mkdir -p dist/AppDir/usr/bin dist/AppDir/usr/share/icons
+          cp dist/linux/peardesk dist/AppDir/usr/bin/
+          cp assets/icon.png dist/AppDir/peardesk.png
+          cp assets/icon.png dist/AppDir/usr/share/icons/peardesk.png
+          cat > dist/AppDir/peardesk.desktop <<EOF
+          [Desktop Entry]
+          Name=PearDesk
+          Exec=peardesk
+          Icon=peardesk
+          Type=Application
+          Categories=Network;RemoteAccess;
+          EOF
+          cat > dist/AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          exec "${APPDIR}/usr/bin/peardesk" "$@"
+          EOF
+          chmod +x dist/AppDir/AppRun
+          ARCH=x86_64 appimagetool dist/AppDir dist/PearDesk-linux-x86_64.AppImage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peardesk-linux
+          path: |
+            dist/PearDesk-linux-x86_64.AppImage
+            dist/linux/peardesk
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build Windows
+        run: |
+          mkdir -p dist/windows
+          go build -ldflags="-s -w -H=windowsgui" -o dist/windows/PearDesk.exe ./cmd/peardesk
+          cp assets/icon.png dist/windows/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peardesk-windows
+          path: dist/windows/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Build macOS
+        run: |
+          mkdir -p dist/macos
+          CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 \
+            go build -ldflags="-s -w" -o dist/macos/peardesk ./cmd/peardesk
+          # Bundle .app
+          mkdir -p dist/PearDesk.app/Contents/MacOS
+          mkdir -p dist/PearDesk.app/Contents/Resources
+          mv dist/macos/peardesk dist/PearDesk.app/Contents/MacOS/
+          cp assets/icon.png dist/PearDesk.app/Contents/Resources/
+          cat > dist/PearDesk.app/Contents/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>PearDesk</string>
+            <key>CFBundleExecutable</key><string>peardesk</string>
+            <key>CFBundleIdentifier</key><string>com.peardesk.app</string>
+            <key>CFBundleVersion</key><string>1.0.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>NSHumanReadableCopyright</key><string>Copyright 2024 PearDesk</string>
+          </dict>
+          </plist>
+          EOF
+          cd dist && zip -r PearDesk-macos.zip PearDesk.app/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: peardesk-macos
+          path: dist/PearDesk-macos.zip
+
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/peardesk-linux/PearDesk-linux-x86_64.AppImage
+            artifacts/peardesk-windows/PearDesk.exe
+            artifacts/peardesk-macos/PearDesk-macos.zip
