@@ -22,6 +22,7 @@ jobs:
             libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
             libxinerama-dev libgl1-mesa-dev libgles2-mesa-dev \
             libfontconfig1-dev libfreetype6-dev libxtst-dev \
+            libxxf86vm-dev \
             pkg-config gcc wget
 
       - name: Build Linux binary
