@@ -51,7 +51,7 @@ jobs:
           echo "Type=Application" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Categories=Utility;" >> AppDir/usr/share/applications/peardesk.desktop
 
-          # AppRun
+          # AppRun (OBBLIGATORIO)
           echo '#!/bin/bash' > AppDir/AppRun
           echo 'exec usr/bin/peardesk' >> AppDir/AppRun
           chmod +x AppDir/AppRun
