@@ -43,7 +43,7 @@ jobs:
         cp peardesk-linux AppDir/usr/bin/peardesk
         cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
-        cat > AppDir/usr/share/applications/peardesk.desktop <<EOF
+        cat > AppDir/usr/share/applications/peardesk.desktop << 'EOF'
         [Desktop Entry]
         Name=PearDesk
         Exec=peardesk
@@ -62,9 +62,6 @@ jobs:
       run: |
         export APPIMAGE_EXTRACT_AND_RUN=1
         ./appimagetool-x86_64.AppImage AppDir PearDesk-3.0.0-x86_64.AppImage
-
-
-
 
     - name: Upload AppImage
       uses: actions/upload-artifact@v4
