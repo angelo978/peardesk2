@@ -39,14 +39,22 @@ jobs:
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/icons
           mkdir -p AppDir/usr/share/applications
+
           cp peardesk-linux AppDir/usr/bin/peardesk
           cp assets/icon.png AppDir/usr/share/icons/peardesk.png
+
+          # Desktop file
           echo "[Desktop Entry]" > AppDir/usr/share/applications/peardesk.desktop
           echo "Name=PearDesk" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Exec=peardesk" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Icon=peardesk" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Type=Application" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Categories=Utility;" >> AppDir/usr/share/applications/peardesk.desktop
+
+          # AppRun
+          echo '#!/bin/bash' > AppDir/AppRun
+          echo 'exec usr/bin/peardesk' >> AppDir/AppRun
+          chmod +x AppDir/AppRun
 
       - name: Download appimagetool
         run: |
