@@ -31,26 +31,21 @@ jobs:
 
       - name: Build binary
         run: |
-          go env
           go build -o peardesk-linux ./cmd/peardesk
 
       - name: Prepare AppDir
         run: |
           mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/applications
 
+          # Copia binario
           cp peardesk-linux AppDir/usr/bin/peardesk
 
-          echo "[Desktop Entry]" > AppDir/usr/share/applications/peardesk.desktop
-          echo "Name=PearDesk" >> AppDir/usr/share/applications/peardesk.desktop
-          echo "Exec=peardesk" >> AppDir/usr/share/applications/peardesk.desktop
-          echo "Icon=peardesk" >> AppDir/usr/share/applications/peardesk.desktop
-          echo "Type=Application" >> AppDir/usr/share/applications/peardesk.desktop
-          echo "Categories=Utility;" >> AppDir/usr/share/applications/peardesk.desktop
-
-          echo '#!/bin/bash' > AppDir/AppRun
-          echo 'exec usr/bin/peardesk' >> AppDir/AppRun
+          # Copia AppRun, desktop file e icona dalla cartella assets
+          cp assets/AppRun AppDir/AppRun
           chmod +x AppDir/AppRun
+
+          cp assets/peardesk.desktop AppDir/peardesk.desktop
+          cp assets/icon.png AppDir/peardesk.png
 
       - name: Download appimagetool
         run: |
