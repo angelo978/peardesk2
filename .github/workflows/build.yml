@@ -28,7 +28,9 @@ jobs:
             libfreetype6-dev libxtst-dev libxxf86vm-dev pkg-config gcc wget
 
       - name: Build binary
-        run: go build -o peardesk-linux ./cmd/peardesk
+        run: |
+          go env
+          go build -o peardesk-linux ./cmd/peardesk
 
       - name: Prepare AppDir
         run: |
