@@ -43,15 +43,15 @@ jobs:
           cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
       - name: Create desktop file
-        run: |
+        run: >
           cat > AppDir/usr/share/applications/peardesk.desktop << 'EOF'
-[Desktop Entry]
-Name=PearDesk
-Exec=peardesk
-Icon=peardesk
-Type=Application
-Categories=Utility;
-EOF
+          [Desktop Entry]
+          Name=PearDesk
+          Exec=peardesk
+          Icon=peardesk
+          Type=Application
+          Categories=Utility;
+          EOF
 
       - name: Download appimagetool
         run: |
