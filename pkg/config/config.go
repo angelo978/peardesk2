@@ -20,6 +20,7 @@ type Config struct {
         HostPassword string         `json:"host_password"`
         History      []HistoryEntry `json:"history"`
         RelayURL     string         `json:"relay_url"`
+        Language     string         `json:"language,omitempty"`
 }
 
 var defaultRelayURL = "https://3ca850fa-31e6-4a64-9bf4-cb64713888d9-00-xcum3wq713r4.picard.replit.dev/api"

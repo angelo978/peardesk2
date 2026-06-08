@@ -38,15 +38,35 @@ type Connection struct {
         tunnelURL string
         mu        sync.Mutex // guards conn writes
 
+        // Callback fields — set via the thread-safe setters below.
+        // Direct assignment is NOT safe if readLoop is already running.
         OnFrame     func(b64 string, w, h int)
-        OnFileList  func(path string, files []protocol.FileInfo)
-        OnClipboard func(text string) // called when host clipboard changes
+        OnClipboard func(text string)
         OnLog       func(string)
         OnError     func(error)
         OnClose     func()
 
+        cbMu       sync.RWMutex // guards onFileList
+        onFileList func(path string, files []protocol.FileInfo)
+
         transfers   map[string]*downloadState
         transfersMu sync.Mutex
+}
+
+// SetOnFileList sets the callback invoked when a file-list response arrives.
+// Thread-safe: may be called while readLoop is running.
+func (c *Connection) SetOnFileList(f func(path string, files []protocol.FileInfo)) {
+        c.cbMu.Lock()
+        c.onFileList = f
+        c.cbMu.Unlock()
+}
+
+// OnFileList (legacy read helper) — kept so remote_window.go compiles unchanged.
+// Prefer SetOnFileList for thread safety.
+func (c *Connection) getOnFileList() func(path string, files []protocol.FileInfo) {
+        c.cbMu.RLock()
+        defer c.cbMu.RUnlock()
+        return c.onFileList
 }
 
 // Connect dials the host and authenticates.
@@ -126,8 +146,10 @@ func (c *Connection) readLoop() {
                         }
                 case protocol.TypeFileList:
                         var fl protocol.FileListMsg
-                        if err := json.Unmarshal(msgBytes, &fl); err == nil && c.OnFileList != nil {
-                                c.OnFileList(fl.Path, fl.Files)
+                        if err := json.Unmarshal(msgBytes, &fl); err == nil {
+                                if f := c.getOnFileList(); f != nil {
+                                        f(fl.Path, fl.Files)
+                                }
                         }
                 case protocol.TypeFileChunk:
                         c.handleDownloadChunk(msgBytes)
@@ -374,6 +396,9 @@ func (c *Connection) Ping() {
 }
 func (c *Connection) SendClipboard(text string) {
         c.writeMsg(protocol.ClipboardMsg{Type: protocol.TypeClipboard, Text: text})
+}
+func (c *Connection) SendRune(text string) {
+        c.writeMsg(protocol.RuneMsg{Type: protocol.TypeRune, Text: text})
 }
 func (c *Connection) Close() {
         c.mu.Lock()

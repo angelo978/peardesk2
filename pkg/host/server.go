@@ -168,6 +168,13 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
                         case protocol.TypePing:
                                 safeWrite(protocol.PongMsg{Type: protocol.TypePong})
 
+                        // Direct character input (handles uppercase, @, F-keys, etc.)
+                        case protocol.TypeRune:
+                                var rm protocol.RuneMsg
+                                if err := json.Unmarshal(msgBytes, &rm); err == nil && rm.Text != "" {
+                                        injectRune(rm.Text)
+                                }
+
                         // Clipboard: client changed their clipboard → apply on host
                         case protocol.TypeClipboard:
                                 var cb protocol.ClipboardMsg

@@ -18,6 +18,7 @@ import (
 
 	"github.com/peardesk/peardesk/pkg/clipboard"
 	"github.com/peardesk/peardesk/pkg/client"
+	"github.com/peardesk/peardesk/pkg/i18n"
 )
 
 type RemoteWindow struct {
@@ -25,7 +26,7 @@ type RemoteWindow struct {
 	conn      *client.Connection
 	imgWidget *canvas.Image
 	statusLbl *widget.Label
-	cbLbl     *widget.Label // clipboard sync indicator
+	cbLbl     *widget.Label
 	mu        sync.Mutex
 	remoteW   int
 	remoteH   int
@@ -42,7 +43,7 @@ func ShowRemoteWindow(a fyne.App, conn *client.Connection, hostID string) *Remot
 		app:       a,
 		win:       win,
 		conn:      conn,
-		statusLbl: widget.NewLabel("Connesso a " + hostID),
+		statusLbl: widget.NewLabel(i18n.T("connected_to") + " " + hostID),
 		cbLbl:     widget.NewLabel(""),
 		hostID:    hostID,
 	}
@@ -54,7 +55,7 @@ func ShowRemoteWindow(a fyne.App, conn *client.Connection, hostID string) *Remot
 
 	interactiveImg := newInteractiveImage(img, rw)
 
-	filesBtn := widget.NewButtonWithIcon("File", theme.FolderOpenIcon(), func() {
+	filesBtn := widget.NewButtonWithIcon(i18n.T("files"), theme.FolderOpenIcon(), func() {
 		ShowFileWindow(a, conn, hostID)
 	})
 
@@ -66,25 +67,36 @@ func ShowRemoteWindow(a fyne.App, conn *client.Connection, hostID string) *Remot
 	content := container.NewBorder(toolbar, nil, nil, nil, interactiveImg)
 	win.SetContent(content)
 
+	// ── Keyboard: typed rune (handles uppercase, @, etc.) ─────────────────────
+	win.Canvas().SetOnTypedRune(func(r rune) {
+		rw.conn.SendRune(string(r))
+	})
+
+	// ── Keyboard: special keys (F1-F12, arrows, ctrl, alt, etc.) ─────────────
 	win.Canvas().SetOnTypedKey(func(ev *fyne.KeyEvent) {
 		key := string(ev.Name)
+		// Skip printable chars — they are already handled by OnTypedRune
+		if isPrintableKey(key) {
+			return
+		}
 		rw.conn.SendKeyDown(key, nil)
 		rw.conn.SendKeyUp(key, nil)
 	})
 
-	// Video stream callbacks
+	// ── Video ─────────────────────────────────────────────────────────────────
 	conn.OnFrame = func(b64 string, w, h int) { rw.updateFrame(b64, w, h) }
-	conn.OnClose = func() { rw.statusLbl.SetText("Connessione chiusa") }
-	conn.OnError = func(err error) { rw.statusLbl.SetText("Errore: " + err.Error()) }
+	conn.OnClose = func() { rw.statusLbl.SetText(i18n.T("connection_closed")) }
+	conn.OnError = func(err error) {
+		rw.statusLbl.SetText(i18n.T("error") + ": " + err.Error())
+	}
 
-	// Clipboard: host → client
+	// ── Clipboard ─────────────────────────────────────────────────────────────
 	conn.OnClipboard = func(text string) {
 		if err := rw.cbMon.Write(text); err == nil {
 			rw.flashClipboard("← host")
 		}
 	}
 
-	// Clipboard: client → host (monitor local clipboard)
 	rw.cbMon = clipboard.New(500 * time.Millisecond)
 	rw.cbMon.Start(func(text string) {
 		conn.SendClipboard(text)
@@ -99,7 +111,6 @@ func ShowRemoteWindow(a fyne.App, conn *client.Connection, hostID string) *Remot
 	return rw
 }
 
-// flashClipboard shows a brief "📋 direction" label that fades after 2 s.
 func (rw *RemoteWindow) flashClipboard(direction string) {
 	rw.cbLbl.SetText(fmt.Sprintf("📋 %s", direction))
 	go func() {
@@ -123,6 +134,50 @@ func (rw *RemoteWindow) updateFrame(b64 string, w, h int) {
 	rw.mu.Unlock()
 	rw.imgWidget.Image = img
 	rw.imgWidget.Refresh()
+}
+
+// imageRect returns the actual rendered image bounds inside the widget,
+// accounting for letterboxing from ImageFillContain.
+func (rw *RemoteWindow) imageRect() (offsetX, offsetY, imgW, imgH float32) {
+	rw.mu.Lock()
+	remW := rw.remoteW
+	remH := rw.remoteH
+	rw.mu.Unlock()
+
+	ws := rw.imgWidget.Size()
+	wW, wH := ws.Width, ws.Height
+
+	if remW == 0 || remH == 0 || wW == 0 || wH == 0 {
+		return 0, 0, wW, wH
+	}
+
+	scaleX := wW / float32(remW)
+	scaleY := wH / float32(remH)
+	scale := scaleX
+	if scaleY < scale {
+		scale = scaleY
+	}
+
+	imgW = float32(remW) * scale
+	imgH = float32(remH) * scale
+	offsetX = (wW - imgW) / 2
+	offsetY = (wH - imgH) / 2
+	return
+}
+
+// isPrintableKey returns true for keys that produce a character via OnTypedRune.
+// We skip them in OnTypedKey to avoid duplicate input.
+func isPrintableKey(key string) bool {
+	if len(key) == 1 {
+		r := rune(key[0])
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
+			(r >= '0' && r <= '9') || r > 127
+	}
+	switch key {
+	case "Space", "Return", "KP_Enter":
+		return true
+	}
+	return false
 }
 
 // ─── Interactive image widget ─────────────────────────────────────────────────
@@ -167,10 +222,24 @@ func (i *interactiveImage) Scrolled(ev *fyne.ScrollEvent) {
 	i.rw.conn.SendScroll(xR, yR, float64(ev.Scrolled.DY))
 }
 
+// ratios converts a widget-local position to [0,1] ratios on the remote screen,
+// correctly accounting for letterbox offsets from ImageFillContain.
 func (i *interactiveImage) ratios(pos fyne.Position) (float64, float64) {
-	size := i.Size()
-	if size.Width == 0 || size.Height == 0 {
+	offsetX, offsetY, imgW, imgH := i.rw.imageRect()
+	if imgW == 0 || imgH == 0 {
 		return 0, 0
 	}
-	return float64(pos.X) / float64(size.Width), float64(pos.Y) / float64(size.Height)
+	x := float64(pos.X-offsetX) / float64(imgW)
+	y := float64(pos.Y-offsetY) / float64(imgH)
+	if x < 0 {
+		x = 0
+	} else if x > 1 {
+		x = 1
+	}
+	if y < 0 {
+		y = 0
+	} else if y > 1 {
+		y = 1
+	}
+	return x, y
 }

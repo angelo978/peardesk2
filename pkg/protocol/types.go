@@ -4,6 +4,7 @@ const (
         TypeFrame      = "frame"
         TypeMouseEvent = "mouse"
         TypeKeyEvent   = "key"
+        TypeRune       = "rune" // direct character input (handles uppercase, @, etc.)
         TypeClipboard  = "clipboard"
         TypeAuth       = "auth"
         TypeAuthOK     = "auth_ok"
@@ -71,6 +72,12 @@ type KeyEventMsg struct {
 
 type PingMsg struct{ Type string `json:"type"` }
 type PongMsg struct{ Type string `json:"type"` }
+
+// RuneMsg carries a single Unicode character for direct text input.
+type RuneMsg struct {
+        Type string `json:"type"`
+        Text string `json:"text"` // UTF-8 encoded character(s)
+}
 
 // ClipboardMsg is sent in both directions when clipboard content changes.
 type ClipboardMsg struct {

@@ -29,9 +29,13 @@ func main() {
 
 	home, _ := os.UserHomeDir()
 	dataDir := filepath.Join(home, ".peardesk")
-	cloudflaredBin, cfErr := tunnel.FindOrDownloadCloudflared(dataDir)
+
+	// Auto-download cloudflared if not available; show progress to stdout only
+	cloudflaredBin, cfErr := tunnel.FindOrDownloadCloudflared(dataDir, func(msg string) {
+		log.Println(msg)
+	})
 	if cfErr != nil {
-		log.Printf("Avviso: cloudflared non disponibile: %v", cfErr)
+		log.Printf("Avviso cloudflared: %v", cfErr)
 		cloudflaredBin = ""
 	}
 
