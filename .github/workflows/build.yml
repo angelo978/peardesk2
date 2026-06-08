@@ -1,49 +1,43 @@
-name: PearDesk 3.0 Build
+name: PearDesk Build
 
 on:
   push:
     branches: ["master"]
+    tags-ignore: ["*"]
   pull_request:
     branches: ["master"]
 
 jobs:
 
   build-linux:
-    name: Build AppImage (Linux)
     runs-on: ubuntu-22.04
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
 
-      - name: Install FLTK + X11 deps
+      - name: Install deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libx11-dev libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
-            libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev libfreetype6-dev \
-            libxtst-dev pkg-config gcc libfltk1.3-dev libxext-dev libxft-dev libxrender-dev \
-            libxxf86vm-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
+            libxinerama-dev libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev \
+            libfreetype6-dev libxtst-dev libxxf86vm-dev pkg-config gcc wget
 
-      - name: Build Go app
-        run: |
-          go build -o peardesk-linux ./cmd/peardesk
+      - name: Build binary
+        run: go build -o peardesk-linux ./cmd/peardesk
 
       - name: Prepare AppDir
         run: |
           mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/share/icons
           mkdir -p AppDir/usr/share/applications
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
           cp peardesk-linux AppDir/usr/bin/peardesk
-          cp assets/icon.png AppDir/usr/share/icons/peardesk.png
+          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/peardesk.png
 
-          # Desktop file
           echo "[Desktop Entry]" > AppDir/usr/share/applications/peardesk.desktop
           echo "Name=PearDesk" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Exec=peardesk" >> AppDir/usr/share/applications/peardesk.desktop
@@ -51,7 +45,6 @@ jobs:
           echo "Type=Application" >> AppDir/usr/share/applications/peardesk.desktop
           echo "Categories=Utility;" >> AppDir/usr/share/applications/peardesk.desktop
 
-          # AppRun (OBBLIGATORIO)
           echo '#!/bin/bash' > AppDir/AppRun
           echo 'exec usr/bin/peardesk' >> AppDir/AppRun
           chmod +x AppDir/AppRun
@@ -65,62 +58,9 @@ jobs:
       - name: Build AppImage
         run: |
           export APPIMAGE_EXTRACT_AND_RUN=1
-          ./appimagetool-x86_64.AppImage AppDir PearDesk-3.0.0-x86_64.AppImage
+          ./appimagetool-x86_64.AppImage AppDir PearDesk.AppImage
 
-      - name: Upload AppImage
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: PearDesk-3.0.0-AppImage
-          path: PearDesk-3.0.0-x86_64.AppImage
-
-
-  build-windows:
-    name: Build EXE (Windows)
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Build Windows EXE
-        run: |
-          go build -o PearDesk-3.0.0.exe ./cmd/peardesk
-
-      - name: Upload EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: PearDesk-3.0.0-EXE
-          path: PearDesk-3.0.0.exe
-
-
-  build-macos:
-    name: Build macOS (Intel)
-    runs-on: macos-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Build macOS binary
-        run: |
-          go build -o PearDesk-3.0.0-macos ./cmd/peardesk
-
-      - name: Zip macOS binary
-        run: |
-          zip PearDesk-3.0.0-macos.zip PearDesk-3.0.0-macos
-
-      - name: Upload macOS zip
-        uses: actions/upload-artifact@v4
-        with:
-          name: PearDesk-3.0.0-macOS
-          path: PearDesk-3.0.0-macos.zip
+          name: PearDesk-AppImage
+          path: PearDesk.AppImage
