@@ -34,10 +34,8 @@ jobs:
         run: |
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/applications
-          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
 
           cp peardesk-linux AppDir/usr/bin/peardesk
-          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/peardesk.png
 
           echo "[Desktop Entry]" > AppDir/usr/share/applications/peardesk.desktop
           echo "Name=PearDesk" >> AppDir/usr/share/applications/peardesk.desktop
