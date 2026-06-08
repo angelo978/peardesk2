@@ -1,147 +1,91 @@
-name: Build PearDesk
+name: PearDesk 3.0 Build
 
 on:
   push:
-    tags: ["v*"]
-  workflow_dispatch:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
 jobs:
-
   build-linux:
+    name: Build AppImage (Linux)
     runs-on: ubuntu-22.04
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      - name: Install deps
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y \
-            libx11-dev libxrandr-dev libxcursor-dev libxi-dev \
-            libxinerama-dev libgl1-mesa-dev libgles2-mesa-dev \
-            libfontconfig1-dev libfreetype6-dev libxtst-dev \
-            libxxf86vm-dev \
-            pkg-config gcc wget
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.22"
 
-      - name: Build Linux binary
-        run: |
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-            go build -ldflags="-s -w" -o PearDesk ./cmd/peardesk
+    - name: Build Go backend
+      run: |
+        cd peardesk
+        go build -o peardesk-backend
 
-      - name: Package AppImage
-        run: |
-          wget -q \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
-            -O /tmp/appimagetool
-          chmod +x /tmp/appimagetool
+    - name: Build FLTK frontend
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfltk1.3-dev libx11-dev libxext-dev libxft-dev libxinerama-dev libxcursor-dev libxrender-dev
+        cd cmd
+        make
+        mv peardesk ../peardesk-frontend
 
-          mkdir -p AppDir/usr/bin AppDir/usr/share/icons/hicolor/256x256/apps
-          cp PearDesk AppDir/usr/bin/peardesk
-          cp assets/icon.png AppDir/peardesk.png
-          cp assets/icon.png AppDir/usr/share/icons/hicolor/256x256/apps/peardesk.png
+    - name: Prepare AppDir
+      run: |
+        mkdir -p AppDir/usr/bin
+        mkdir -p AppDir/usr/share/icons
+        mkdir -p AppDir/usr/share/applications
+        cp peardesk/peardesk-backend AppDir/usr/bin/
+        cp peardesk-frontend AppDir/usr/bin/peardesk
+        cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
-          cat > AppDir/peardesk.desktop << 'EOF'
-          [Desktop Entry]
-          Name=PearDesk
-          Exec=peardesk
-          Icon=peardesk
-          Type=Application
-          Categories=Network;RemoteAccess;
-          EOF
+        cat > AppDir/usr/share/applications/peardesk.desktop <<EOF
+        [Desktop Entry]
+        Name=PearDesk
+        Exec=peardesk
+        Icon=peardesk
+        Type=Application
+        Categories=Utility;
+        EOF
 
-          cat > AppDir/AppRun << 'EOF'
-          #!/bin/sh
-          exec "${APPDIR}/usr/bin/peardesk" "$@"
-          EOF
-          chmod +x AppDir/AppRun
+    - name: Download appimagetool
+      run: |
+        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+        chmod +x appimagetool-x86_64.AppImage
 
-          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 \
-            /tmp/appimagetool AppDir PearDesk-linux-x86_64.AppImage
+    - name: Build AppImage
+      run: |
+        ./appimagetool-x86_64.AppImage AppDir PearDesk-3.0.0-x86_64.AppImage
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: peardesk-linux
-          path: PearDesk-linux-x86_64.AppImage
+    - name: Upload AppImage
+      uses: actions/upload-artifact@v4
+      with:
+        name: PearDesk-3.0.0-AppImage
+        path: PearDesk-3.0.0-x86_64.AppImage
 
   build-windows:
-    runs-on: ubuntu-22.04
+    name: Build EXE (Windows)
+    runs-on: windows-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      - name: Install mingw
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y gcc-mingw-w64-x86-64 pkg-config
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.22"
 
-      - name: Build Windows EXE
-        env:
-          GOOS: windows
-          GOARCH: amd64
-          CGO_ENABLED: "1"
-          CC: x86_64-w64-mingw32-gcc
-        run: |
-          go build -ldflags="-s -w -H=windowsgui" \
-            -o PearDesk.exe ./cmd/peardesk
+    - name: Build Windows EXE
+      run: |
+        cd peardesk
+        go build -o PearDesk-3.0.0.exe
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: peardesk-windows
-          path: PearDesk.exe
-
-  build-macos:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Build macOS binary
-        run: |
-          CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-            go build -ldflags="-s -w" -o PearDesk ./cmd/peardesk
-
-      - name: Create DMG
-        run: |
-          mkdir dmg-staging
-          mkdir dmg-staging/PearDesk.app
-          mkdir dmg-staging/PearDesk.app/Contents
-          mkdir dmg-staging/PearDesk.app/Contents/MacOS
-          cp PearDesk dmg-staging/PearDesk.app/Contents/MacOS/PearDesk
-
-          hdiutil create \
-            -volname "PearDesk" \
-            -srcfolder dmg-staging \
-            -ov -format UDZO \
-            PearDesk.dmg
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: peardesk-macos
-          path: PearDesk.dmg
-
-  release:
-    needs: [build-linux, build-windows, build-macos]
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            artifacts/PearDesk-linux-x86_64.AppImage
-            artifacts/PearDesk.exe
-            artifacts/PearDesk.dmg
+    - name: Upload EXE
+      uses: actions/upload-artifact@v4
+      with:
+        name: PearDesk-3.0.0-EXE
+        path: peardesk/PearDesk-3.0.0.exe
