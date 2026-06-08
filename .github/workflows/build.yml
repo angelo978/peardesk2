@@ -11,6 +11,8 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-22.04
+    env:
+      GOTOOLCHAIN: local
 
     steps:
       - uses: actions/checkout@v4
