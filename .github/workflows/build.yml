@@ -2,9 +2,9 @@ name: PearDesk 3.0 Build
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
-    branches: [ "master" ]
+    branches: ["master"]
 
 jobs:
 
@@ -13,37 +13,37 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: "1.22"
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
 
-    - name: Install FLTK + X11 deps
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          libx11-dev libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
-          libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev libfreetype6-dev \
-          libxtst-dev pkg-config gcc libfltk1.3-dev libxext-dev libxft-dev libxrender-dev \
-          libxxf86vm-dev
+      - name: Install FLTK + X11 deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libx11-dev libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
+            libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev libfreetype6-dev \
+            libxtst-dev pkg-config gcc libfltk1.3-dev libxext-dev libxft-dev libxrender-dev \
+            libxxf86vm-dev
 
-    - name: Build Go app (backend + UI)
-      run: |
-        go build -o peardesk-linux ./cmd/peardesk
+      - name: Build Go app
+        run: |
+          go build -o peardesk-linux ./cmd/peardesk
 
-    - name: Prepare AppDir
-      run: |
-        mkdir -p AppDir/usr/bin
-        mkdir -p AppDir/usr/share/icons
-        mkdir -p AppDir/usr/share/applications
+      - name: Prepare AppDir
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/icons
+          mkdir -p AppDir/usr/share/applications
 
-        cp peardesk-linux AppDir/usr/bin/peardesk
-        cp assets/icon.png AppDir/usr/share/icons/peardesk.png
+          cp peardesk-linux AppDir/usr/bin/peardesk
+          cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
-        cat << 'EOF' > AppDir/usr/share/applications/peardesk.desktop
+          cat << 'EOF' > AppDir/usr/share/applications/peardesk.desktop
 [Desktop Entry]
 Name=PearDesk
 Exec=peardesk
@@ -52,22 +52,22 @@ Type=Application
 Categories=Utility;
 EOF
 
-    - name: Download appimagetool (no FUSE mode)
-      run: |
-        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-        chmod +x appimagetool-x86_64.AppImage
-        export APPIMAGE_EXTRACT_AND_RUN=1
+      - name: Download appimagetool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          export APPIMAGE_EXTRACT_AND_RUN=1
 
-    - name: Build AppImage
-      run: |
-        export APPIMAGE_EXTRACT_AND_RUN=1
-        ./appimagetool-x86_64.AppImage AppDir PearDesk-3.0.0-x86_64.AppImage
+      - name: Build AppImage
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1
+          ./appimagetool-x86_64.AppImage AppDir PearDesk-3.0.0-x86_64.AppImage
 
-    - name: Upload AppImage
-      uses: actions/upload-artifact@v4
-      with:
-        name: PearDesk-3.0.0-AppImage
-        path: PearDesk-3.0.0-x86_64.AppImage
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: PearDesk-3.0.0-AppImage
+          path: PearDesk-3.0.0-x86_64.AppImage
 
 
   build-windows:
@@ -75,23 +75,23 @@ EOF
     runs-on: windows-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: "1.22"
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
 
-    - name: Build Windows EXE
-      run: |
-        go build -o PearDesk-3.0.0.exe ./cmd/peardesk
+      - name: Build Windows EXE
+        run: |
+          go build -o PearDesk-3.0.0.exe ./cmd/peardesk
 
-    - name: Upload EXE
-      uses: actions/upload-artifact@v4
-      with:
-        name: PearDesk-3.0.0-EXE
-        path: PearDesk-3.0.0.exe
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: PearDesk-3.0.0-EXE
+          path: PearDesk-3.0.0.exe
 
 
   build-macos:
@@ -99,24 +99,24 @@ EOF
     runs-on: macos-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Install Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: "1.22"
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
 
-    - name: Build macOS binary
-      run: |
-        go build -o PearDesk-3.0.0-macos ./cmd/peardesk
+      - name: Build macOS binary
+        run: |
+          go build -o PearDesk-3.0.0-macos ./cmd/peardesk
 
-    - name: Zip macOS binary
-      run: |
-        zip PearDesk-3.0.0-macos.zip PearDesk-3.0.0-macos
+      - name: Zip macOS binary
+        run: |
+          zip PearDesk-3.0.0-macos.zip PearDesk-3.0.0-macos
 
-    - name: Upload macOS zip
-      uses: actions/upload-artifact@v4
-      with:
-        name: PearDesk-3.0.0-macOS
-        path: PearDesk-3.0.0-macos.zip
+      - name: Upload macOS zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: PearDesk-3.0.0-macOS
+          path: PearDesk-3.0.0-macos.zip
