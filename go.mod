@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/kbinani/screenshot v0.0.0-20240820160931-a8a2c5d0e191
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
-	golang.org/x/sys v0.45.0
+	golang.org/x/sys v0.26.0
 )
 
 require (
@@ -64,3 +64,5 @@ require (
 	golang.org/x/text v0.19.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.20.0
