@@ -43,14 +43,14 @@ jobs:
         cp peardesk-linux AppDir/usr/bin/peardesk
         cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
-        cat > AppDir/usr/share/applications/peardesk.desktop << 'EOF'
-        [Desktop Entry]
-        Name=PearDesk
-        Exec=peardesk
-        Icon=peardesk
-        Type=Application
-        Categories=Utility;
-        EOF
+        cat << 'EOF' > AppDir/usr/share/applications/peardesk.desktop
+[Desktop Entry]
+Name=PearDesk
+Exec=peardesk
+Icon=peardesk
+Type=Application
+Categories=Utility;
+EOF
 
     - name: Download appimagetool (no FUSE mode)
       run: |
