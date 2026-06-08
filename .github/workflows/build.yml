@@ -39,7 +39,6 @@ jobs:
           mkdir -p AppDir/usr/bin
           mkdir -p AppDir/usr/share/icons
           mkdir -p AppDir/usr/share/applications
-
           cp peardesk-linux AppDir/usr/bin/peardesk
           cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
