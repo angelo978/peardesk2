@@ -7,6 +7,7 @@ on:
     branches: [ "master" ]
 
 jobs:
+
   build-linux:
     name: Build AppImage (Linux)
     runs-on: ubuntu-22.04
@@ -20,26 +21,25 @@ jobs:
       with:
         go-version: "1.22"
 
-    - name: Build Go backend
-      run: |
-        cd peardesk
-        go build -o peardesk-backend
-
-    - name: Build FLTK frontend
+    - name: Install FLTK deps
       run: |
         sudo apt-get update
-        sudo apt-get install -y libfltk1.3-dev libx11-dev libxext-dev libxft-dev libxinerama-dev libxcursor-dev libxrender-dev
-        cd cmd
-        make
-        mv peardesk ../peardesk-frontend
+        sudo apt-get install -y \
+          libx11-dev libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
+          libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev libfreetype6-dev \
+          libxtst-dev pkg-config gcc libfltk1.3-dev libxext-dev libxft-dev libxrender-dev
+
+    - name: Build Go app (backend + UI)
+      run: |
+        go build -o peardesk-linux ./cmd/peardesk
 
     - name: Prepare AppDir
       run: |
         mkdir -p AppDir/usr/bin
         mkdir -p AppDir/usr/share/icons
         mkdir -p AppDir/usr/share/applications
-        cp peardesk/peardesk-backend AppDir/usr/bin/
-        cp peardesk-frontend AppDir/usr/bin/peardesk
+
+        cp peardesk-linux AppDir/usr/bin/peardesk
         cp assets/icon.png AppDir/usr/share/icons/peardesk.png
 
         cat > AppDir/usr/share/applications/peardesk.desktop <<EOF
@@ -66,6 +66,7 @@ jobs:
         name: PearDesk-3.0.0-AppImage
         path: PearDesk-3.0.0-x86_64.AppImage
 
+
   build-windows:
     name: Build EXE (Windows)
     runs-on: windows-latest
@@ -81,11 +82,38 @@ jobs:
 
     - name: Build Windows EXE
       run: |
-        cd peardesk
-        go build -o PearDesk-3.0.0.exe
+        go build -o PearDesk-3.0.0.exe ./cmd/peardesk
 
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
         name: PearDesk-3.0.0-EXE
-        path: peardesk/PearDesk-3.0.0.exe
+        path: PearDesk-3.0.0.exe
+
+
+  build-macos:
+    name: Build macOS (Intel)
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.22"
+
+    - name: Build macOS binary
+      run: |
+        go build -o PearDesk-3.0.0-macos ./cmd/peardesk
+
+    - name: Zip macOS binary
+      run: |
+        zip PearDesk-3.0.0-macos.zip PearDesk-3.0.0-macos
+
+    - name: Upload macOS zip
+      uses: actions/upload-artifact@v4
+      with:
+        name: PearDesk-3.0.0-macOS
+        path: PearDesk-3.0.0-macos.zip
