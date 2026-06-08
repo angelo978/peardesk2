@@ -21,13 +21,14 @@ jobs:
       with:
         go-version: "1.22"
 
-    - name: Install FLTK deps
+    - name: Install FLTK + X11 deps
       run: |
         sudo apt-get update
         sudo apt-get install -y \
           libx11-dev libxrandr-dev libxcursor-dev libxi-dev libxinerama-dev \
           libgl1-mesa-dev libgles2-mesa-dev libfontconfig1-dev libfreetype6-dev \
-          libxtst-dev pkg-config gcc libfltk1.3-dev libxext-dev libxft-dev libxrender-dev
+          libxtst-dev pkg-config gcc libfltk1.3-dev libxext-dev libxft-dev libxrender-dev \
+          libxxf86vm-dev
 
     - name: Build Go app (backend + UI)
       run: |
