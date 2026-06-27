@@ -9,6 +9,9 @@ on:
 
 jobs:
 
+  # -------------------------
+  # LINUX - AppImage
+  # -------------------------
   build-linux:
     runs-on: ubuntu-22.04
     env:
@@ -36,14 +39,9 @@ jobs:
       - name: Prepare AppDir
         run: |
           mkdir -p AppDir/usr/bin
-
-          # Copia binario
           cp peardesk-linux AppDir/usr/bin/peardesk
-
-          # Copia AppRun, desktop file e icona dalla cartella assets
           cp assets/AppRun AppDir/AppRun
           chmod +x AppDir/AppRun
-
           cp assets/peardesk.desktop AppDir/peardesk.desktop
           cp assets/icon.png AppDir/peardesk.png
 
@@ -62,3 +60,49 @@ jobs:
         with:
           name: PearDesk-AppImage
           path: PearDesk.AppImage
+
+  # -------------------------
+  # WINDOWS - EXE
+  # -------------------------
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.12"
+          check-latest: true
+
+      - name: Build EXE
+        run: |
+          go build -o peardesk.exe ./cmd/peardesk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PearDesk-Windows
+          path: peardesk.exe
+
+  # -------------------------
+  # MACOS - binario
+  # -------------------------
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.12"
+          check-latest: true
+
+      - name: Build macOS binary
+        run: |
+          go build -o peardesk-macos ./cmd/peardesk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PearDesk-macOS
+          path: peardesk-macos
