@@ -163,6 +163,4 @@ peardesk/
 └── go.mod
 ```
 
-## Licenza
 
-MIT
