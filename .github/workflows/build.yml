@@ -6,6 +6,10 @@ on:
     tags-ignore: ["*"]
   pull_request:
     branches: ["master"]
+  # Auto-release parte SOLO quando fai un tag v*
+  workflow_dispatch:
+  release:
+    types: [created]
 
 jobs:
 
@@ -106,3 +110,40 @@ jobs:
         with:
           name: PearDesk-macOS
           path: peardesk-macos
+
+  # -------------------------
+  # AUTO‑RELEASE
+  # -------------------------
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PearDesk-AppImage
+          path: artifacts/linux
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PearDesk-Windows
+          path: artifacts/windows
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PearDesk-macOS
+          path: artifacts/macos
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/linux/*
+            artifacts/windows/*
+            artifacts/macos/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
