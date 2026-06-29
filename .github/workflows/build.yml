@@ -6,7 +6,6 @@ on:
     tags-ignore: ["*"]
   pull_request:
     branches: ["master"]
-  # Auto-release parte SOLO quando fai un tag v*
   workflow_dispatch:
   release:
     types: [created]
@@ -117,7 +116,6 @@ jobs:
   release:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Download Linux artifact
