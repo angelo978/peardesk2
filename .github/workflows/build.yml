@@ -137,6 +137,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: master
+          name: "PearDesk Auto Release"
           files: |
             artifacts/linux/*
             artifacts/windows/*
