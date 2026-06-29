@@ -111,11 +111,12 @@ jobs:
           path: peardesk-macos
 
   # -------------------------
-  # AUTO‑RELEASE
+  # AUTO‑RELEASE (solo quando fai un TAG)
   # -------------------------
   release:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Download Linux artifact
