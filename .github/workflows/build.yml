@@ -3,12 +3,9 @@ name: PearDesk Build
 on:
   push:
     branches: ["master"]
-    tags-ignore: ["*"]
   pull_request:
     branches: ["master"]
   workflow_dispatch:
-  release:
-    types: [created]
 
 jobs:
 
@@ -111,12 +108,11 @@ jobs:
           path: peardesk-macos
 
   # -------------------------
-  # AUTO‑RELEASE (solo quando fai un TAG)
+  # AUTO‑RELEASE (sempre)
   # -------------------------
   release:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Download Linux artifact
