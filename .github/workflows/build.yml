@@ -104,11 +104,11 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PearDesk-macOS
+          name: PearDesk-macos
           path: peardesk-macos
 
   # -------------------------
-  # AUTO‑RELEASE (sempre)
+  # AUTO‑RELEASE (sempre, senza tag)
   # -------------------------
   release:
     needs: [build-linux, build-windows, build-macos]
@@ -130,12 +130,13 @@ jobs:
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
         with:
-          name: PearDesk-macOS
+          name: PearDesk-macos
           path: artifacts/macos
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: master
           files: |
             artifacts/linux/*
             artifacts/windows/*
